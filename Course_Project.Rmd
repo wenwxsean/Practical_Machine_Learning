@@ -1,0 +1,125 @@
+Practical Machine Learning Course Project
+=================================
+## Overview
+In this project, we will be using the Weight Lifting Exercise Dataset to build a machine learning algorithm to predict activity quality (classe) from activity monitors.
+
+## Load dependencies and set seed
+```{r message=FALSE}
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+set.seed(1234)
+```
+
+## Retrieve and Load datasets
+```{r}
+# Training dataset	
+training_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+
+training_file <- "/Users/seanwenweixiong/Documents/Courses/Coursera/Data_Science/8_Practical_Machine_Learning/pml-training.csv"
+
+if(!file.exists(training_file)) {
+            download.file(url=training_url, destfile=training_file, method="curl")
+            }
+
+trainingset <- read.csv(training_file, na.strings=c("NA", "#DIV/0!", ""))	
+
+# Testing dataset
+testing_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+testing_file <-  "/Users/seanwenweixiong/Documents/Courses/Coursera/Data_Science/8_Practical_Machine_Learning/pml-testing.csv"
+
+if(!file.exists(testing_file)) {
+            download.file(url=testing_url, destfile=testing_file, method="curl")
+            }		
+
+testingset <- read.csv(testing_file, na.strings=c("NA", "#DIV/0!", ""))
+
+# Check dimensions
+dim(trainingset); dim(testingset)	
+```
+
+## Cleaning datasets
+```{r}
+# Remove columns with all missing values
+trainingset<-trainingset[ ,colSums(is.na(trainingset)) == 0]
+testingset <-testingset[ ,colSums(is.na(testingset)) == 0]
+
+# Remove variables irrelevant for building prediction model, specifically the first 7 columns
+col_to_rm <- c(1:7)
+trainingset   <-trainingset[ ,-col_to_rm]
+testingset <-testingset[ ,-col_to_rm]
+```
+
+## Cross-validation
+- Partition training set into sub-Training and sub-Test to perform cross-validation. 
+- This will be performed using random subsampling without replacement.
+- The ratio of sub-Training to sub-Test will be 3:1
+```{r}
+subsamples <- createDataPartition(y=trainingset$classe, p=0.75, list=FALSE)
+subTraining <- trainingset[subsamples, ] 
+subTesting <- trainingset[-subsamples, ]
+
+# Check dimensions
+dim(subTraining); dim(subTesting)
+```
+
+## Exploring outcome variable
+```{r}
+class(subTraining$classe); head(subTraining$classe)
+
+# Frequency for each level
+df_count <- data.frame(table(subTraining$classe))
+names(df_count) <- c("classe", "count")
+df_count
+
+# Proportion of each level
+df_prop <- data.frame(table(subTraining$classe)/dim(subTraining)[1]*100)
+names(df_prop) <- c("classe", "proportion")
+df_prop
+```
+- The outcome variable (classe) is a factor variable with 5 levels, i.e. A, B, C, D, and E. The proportion of each level is approximately the same.
+
+## Model prediction using decision tree
+```{r}
+# Fit model
+model1 <- rpart(classe ~ ., data=subTraining, method="class")
+
+# Make predictions
+prediction1 <- predict(model1, subTesting, type = "class")
+
+# Plot decision tree
+	
+rpart.plot(model1, main="Classification Tree", extra=102, under=TRUE, faclen=0)
+
+# Compare predicted values with observed values
+confusionMatrix(prediction1, subTesting$classe)
+
+# Accuracy
+confusionMatrix(prediction1, subTesting$classe)$overall[1]
+```
+
+## Model prediction using random forest
+```{r}
+# Fit model
+model2 <- randomForest(classe ~., data=subTraining, method="class")
+
+# Make predictions
+prediction2 <- predict(model2, subTesting, type="class")
+
+# Compare predicted values with observed values
+confusionMatrix(prediction2, subTesting$classe)
+
+# Accuracy
+confusionMatrix(prediction2, subTesting$classe)$overall[1]
+```
+- The accuracy of the prediction model using decision tree is 73.9% (95% Cl: 72.7-75.2%). Hence, the expected out-of-sample error here is 26.1%.
+- The accuracy of the prediction model using random forest is 99.6% (95% Cl: 99.4-99.8%). Hence, the expected out-of-sample error here is 0.4%.
+- Therefore, predictions by random forest is more accurate compared to that of decision tree here.
+
+## Use selected model prediction on testing set
+```{r}
+prediction3 <- predict(model2, testingset, type="class")
+prediction3
+```
